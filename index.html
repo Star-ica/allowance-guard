@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AllowanceGuard — ERC-20 Approval Security</title>
+<style>
+  :root{
+    --bg:#060d1a;--bg2:#0c1829;--bg3:#111f35;--bg4:#162540;
+    --accent:#3b82f6;--accent2:#06b6d4;--green:#22c55e;
+    --yellow:#eab308;--orange:#f97316;--red:#ef4444;--critical:#dc2626;
+    --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+    --border:#1e3a5f;--border2:#2a4a70;
+    --radius:12px;--shadow:0 4px 24px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;line-height:1.6}
+  a{color:var(--accent);text-decoration:none}
+  /* ── NAV ── */
+  nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:16px;height:60px;position:sticky;top:0;z-index:100}
+  .logo{font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+  .logo span{font-size:.7rem;background:none;-webkit-text-fill-color:var(--text3);font-weight:400;display:block;margin-top:-4px}
+  .nav-links{display:flex;gap:4px;flex:1;overflow-x:auto}
+  .nav-link{padding:6px 14px;border-radius:8px;font-size:.88rem;cursor:pointer;color:var(--text2);transition:.2s;white-space:nowrap;border:none;background:none}
+  .nav-link:hover,.nav-link.active{background:var(--bg3);color:var(--text)}
+  .wallet-btn{margin-left:auto;padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;font-size:.85rem;white-space:nowrap;transition:.2s}
+  .wallet-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .wallet-btn.connected{border-color:var(--green);color:var(--green)}
+  /* ── PAGES ── */
+  .page{display:none;padding:24px;max-width:1100px;margin:0 auto}
+  .page.active{display:block}
+  /* ── CARDS ── */
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .card-title{font-size:1rem;font-weight:600;margin-bottom:16px;color:var(--text)}
+  /* ── GRID ── */
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .grid-3{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  /* ── STAT TILES ── */
+  .stat-tile{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .stat-label{font-size:.78rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+  .stat-value{font-size:1.8rem;font-weight:700;margin-top:4px}
+  /* ── RISK BADGES ── */
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .badge-unknown{background:#1e293b;color:var(--text3)}
+  .badge-low{background:rgba(34,197,94,.15);color:var(--green)}
+  .badge-medium{background:rgba(234,179,8,.15);color:var(--yellow)}
+  .badge-high{background:rgba(249,115,22,.15);color:var(--orange)}
+  .badge-critical{background:rgba(239,68,68,.2);color:var(--red)}
+  .badge-verified{background:rgba(59,130,246,.15);color:var(--accent)}
+  /* ── ALLOWANCE ROWS ── */
+  .allowance-list{display:flex;flex-direction:column;gap:8px}
+  .allowance-row{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:.2s}
+  .allowance-row:hover{border-color:var(--border2)}
+  .allowance-row.risk-critical{border-left:3px solid var(--red)}
+  .allowance-row.risk-high{border-left:3px solid var(--orange)}
+  .allowance-row.risk-medium{border-left:3px solid var(--yellow)}
+  .allowance-row.risk-low{border-left:3px solid var(--green)}
+  .token-icon{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0}
+  .allowance-info{flex:1;min-width:0}
+  .allowance-token{font-weight:600;font-size:.9rem}
+  .allowance-spender{font-size:.78rem;color:var(--text2);font-family:monospace}
+  .allowance-amount{font-size:.85rem;font-weight:600;text-align:right;white-space:nowrap}
+  .allowance-amount.unlimited{color:var(--red)}
+  .allowance-amount.zero{color:var(--text3)}
+  /* ── BUTTONS ── */
+  .btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#2563eb}
+  .btn-danger{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+  .btn-danger:hover{background:rgba(239,68,68,.3)}
+  .btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border2)}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+  .btn-sm{padding:5px 10px;font-size:.78rem}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  /* ── FORM ── */
+  .form-row{margin-bottom:14px}
+  label{display:block;font-size:.82rem;color:var(--text2);margin-bottom:4px}
+  input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:.88rem;outline:none;transition:.2s}
+  input:focus,select:focus{border-color:var(--accent)}
+  /* ── SEARCH BAR ── */
+  .search-wrap{position:relative;margin-bottom:16px}
+  .search-wrap input{padding-left:36px}
+  .search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.9rem}
+  /* ── TABS ── */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+  .tab{padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-size:.88rem;color:var(--text2);border:none;background:none;transition:.2s}
+  .tab.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+  /* ── ALERT BANNER ── */
+  .alert{padding:12px 16px;border-radius:10px;font-size:.88rem;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  .alert-warning{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);color:var(--yellow)}
+  .alert-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+  .alert-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+  .alert-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--accent)}
+  /* ── PROGRESS BAR ── */
+  .risk-bar{height:6px;border-radius:3px;background:var(--bg4);overflow:hidden;margin-top:8px}
+  .risk-fill{height:100%;border-radius:3px;transition:width .4s}
+  /* ── MODAL ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;max-width:500px;width:90%;box-shadow:var(--shadow)}
+  .modal h3{font-size:1.1rem;margin-bottom:16px}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+  /* ── EMPTY STATE ── */
+  .empty{text-align:center;padding:48px;color:var(--text3)}
+  .empty-icon{font-size:3rem;margin-bottom:12px}
+  /* ── TOAST ── */
+  #toast-wrap{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+  .toast{padding:12px 18px;border-radius:10px;font-size:.88rem;box-shadow:var(--shadow);min-width:220px;animation:slide-in .3s ease}
+  .toast.success{background:#14532d;border:1px solid var(--green);color:var(--green)}
+  .toast.error{background:#450a0a;border:1px solid var(--red);color:var(--red)}
+  .toast.info{background:#1e3a5f;border:1px solid var(--accent);color:var(--accent)}
+  @keyframes slide-in{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+  /* ── HEADER ── */
+  .page-header{margin-bottom:24px}
+  .page-header h1{font-size:1.5rem;font-weight:700}
+  .page-header p{color:var(--text2);font-size:.9rem;margin-top:4px}
+  /* ── SPENDER TABLE ── */
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)}
+  td{padding:10px 12px;border-bottom:1px solid var(--border)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .mono{font-family:monospace;font-size:.82rem}
+  /* ── CHECKBOX ── */
+  .check-row{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .check-row input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+  /* ── RESPONSIVE ── */
+  @media(max-width:640px){
+    .grid-2,.grid-3{grid-template-columns:1fr}
+    .allowance-row{flex-wrap:wrap}
+    nav{padding:0 12px}
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div>
+    <div class="logo">🛡 AllowanceGuard<span>ERC-20 Approval Security on BOT Chain</span></div>
+  </div>
+  <div class="nav-links">
+    <button class="nav-link active" onclick="go('dashboard')">Dashboard</button>
+    <button class="nav-link" onclick="go('scanner')">Scanner</button>
+    <button class="nav-link" onclick="go('revoke')">Revoke</button>
+    <button class="nav-link" onclick="go('watchlist')">Watchlist</button>
+    <button class="nav-link" onclick="go('history')">History</button>
+    <button class="nav-link" onclick="go('spenders')">Spender DB</button>
+  </div>
+  <button class="wallet-btn" id="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+</nav>
+
+<div id="toast-wrap"></div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h3 id="confirm-title">Confirm Action</h3>
+    <p id="confirm-msg" style="color:var(--text2);font-size:.9rem"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Confirm Revoke</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: DASHBOARD
+═══════════════════════════════════════════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="page-header">
+    <h1>Security Dashboard</h1>
+    <p>Overview of your ERC-20 approval exposure on BOT Chain</p>
+  </div>
+
+  <div id="no-wallet-banner" class="alert alert-info" style="margin-bottom:20px">
+    ℹ️ Connect your wallet to scan your real allowances. Demo data shown below.
+  </div>
+
+  <div class="grid-3" style="margin-bottom:24px">
+    <div class="stat-tile">
+      <div class="stat-label">Active Approvals</div>
+      <div class="stat-value" id="stat-active">—</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Unlimited Approvals</div>
+      <div class="stat-value" style="color:var(--red)" id="stat-unlimited">—</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">High / Critical Risk</div>
+      <div class="stat-value" style="color:var(--orange)" id="stat-risky">—</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Revoked This Session</div>
+      <div class="stat-value" style="color:var(--green)" id="stat-revoked">0</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Tokens Monitored</div>
+      <div class="stat-value" id="stat-tokens">—</div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-label">Risk Score</div>
+      <div class="stat-value" id="stat-score" style="color:var(--yellow)">—</div>
+      <div class="risk-bar"><div class="risk-fill" id="risk-fill" style="width:0%;background:var(--yellow)"></div></div>
+    </div>
+  </div>
+
+  <div id="critical-alerts" style="margin-bottom:20px"></div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">Top Risky Approvals</div>
+      <button class="btn btn-danger btn-sm" onclick="go('revoke')">Revoke All High Risk</button>
+    </div>
+    <div class="allowance-list" id="dashboard-list">
+      <div class="empty"><div class="empty-icon">🔍</div><div>Connect wallet or scan to load approvals</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: SCANNER
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-scanner">
+  <div class="page-header">
+    <h1>Allowance Scanner</h1>
+    <p>Scan your wallet against a list of tokens to discover live ERC-20 approvals</p>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Scan Configuration</div>
+    <div class="form-row">
+      <label>Wallet Address</label>
+      <input id="scan-wallet" placeholder="0x... (auto-filled when connected)" />
+    </div>
+    <div class="form-row">
+      <label>Add Token Address to Scan</label>
+      <div style="display:flex;gap:8px">
+        <input id="scan-token-input" placeholder="0x token address" />
+        <button class="btn btn-secondary" onclick="addScanToken()">Add</button>
+      </div>
+    </div>
+    <div id="scan-token-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="runScan()">🔍 Scan Now</button>
+      <button class="btn btn-secondary" onclick="loadDemoApprovals()">Load Demo Data</button>
+    </div>
+  </div>
+
+  <div id="scan-results">
+    <div class="empty"><div class="empty-icon">🛡</div><div>Add tokens above and click Scan</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: REVOKE
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-revoke">
+  <div class="page-header">
+    <h1>Revoke Approvals</h1>
+    <p>Select approvals to revoke. Each revoke calls <code>approve(spender, 0)</code> on the token contract.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-secondary btn-sm" onclick="selectAllRisky()">Select High/Critical</button>
+      <button class="btn btn-secondary btn-sm" onclick="selectUnlimited()">Select Unlimited</button>
+      <button class="btn btn-secondary btn-sm" onclick="selectAll()">Select All</button>
+      <button class="btn btn-secondary btn-sm" onclick="deselectAll()">Deselect All</button>
+      <span id="selection-count" style="color:var(--text2);font-size:.85rem;margin-left:auto">0 selected</span>
+      <button class="btn btn-danger" id="batch-revoke-btn" onclick="batchRevoke()" disabled>Revoke Selected</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="allowance-list" id="revoke-list">
+      <div class="empty"><div class="empty-icon">✅</div><div>Scan your wallet first to see approvals here</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: WATCHLIST
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-watchlist">
+  <div class="page-header">
+    <h1>Token Watchlist</h1>
+    <p>Tokens you want to monitor for approvals. Changes are stored on-chain via TokenWatchlist contract.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Add Token</div>
+    <div style="display:flex;gap:8px">
+      <input id="wl-token-input" placeholder="0x token contract address" style="flex:1" />
+      <button class="btn btn-primary" onclick="addToWatchlist()">Add to Watchlist</button>
+    </div>
+    <p style="font-size:.8rem;color:var(--text3);margin-top:8px">Adding will call <code>addToWatchlist(token)</code> on-chain and auto-read token metadata.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Watching</div>
+    <div id="watchlist-items">
+      <div class="empty"><div class="empty-icon">👁</div><div>No tokens on watchlist yet</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: HISTORY
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-history">
+  <div class="page-header">
+    <h1>Approval History</h1>
+    <p>On-chain log of approvals and revocations recorded via AllowanceRegistry</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchHistoryTab('all')">All Records</button>
+    <button class="tab" onclick="switchHistoryTab('active')">Active</button>
+    <button class="tab" onclick="switchHistoryTab('revoked')">Revoked</button>
+  </div>
+
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input id="history-search" placeholder="Search by token or spender address..." oninput="filterHistory()" />
+  </div>
+
+  <div id="history-list">
+    <div class="empty"><div class="empty-icon">📋</div><div>No history yet — connect wallet to load</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE: SPENDER DB
+═══════════════════════════════════════════════ -->
+<div class="page" id="page-spenders">
+  <div class="page-header">
+    <h1>Spender Database</h1>
+    <p>Known spender contracts with risk classifications and verification status</p>
+  </div>
+
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input id="spender-search" placeholder="Search by name or address..." oninput="filterSpenders()" />
+  </div>
+
+  <div class="card" style="overflow-x:auto">
+    <table id="spender-table">
+      <thead>
+        <tr>
+          <th>Spender</th>
+          <th>Name</th>
+          <th>Risk</th>
+          <th>Status</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody id="spender-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
+const DEMO = true; // set false after deploying contracts
+
+const CONFIG = {
+  chainId: 677,
+  chainName: "BOT Chain",
+  rpcUrl: "https://rpc.botchain.tg",
+  explorer: "https://explorer.botchain.tg",
+  contracts: {
+    AllowanceRegistry: "0x0000000000000000000000000000000000000000",
+    TokenWatchlist: "0x0000000000000000000000000000000000000000"
+  }
+};
+
+const ALLOWANCE_REGISTRY_ABI = [
+  "function logAllowance(address token,address spender,uint256 amount) external",
+  "function revokeAllowance(address token,address spender) external",
+  "function batchRevokeAllowances(address[] calldata tokens,address[] calldata spenders) external",
+  "function getWalletRecords(address wallet) external view returns (uint256[])",
+  "function getRecord(uint256 id) external view returns (tuple(address token,address spender,uint256 recordedAmount,uint256 recordedAt,uint256 revokedAt,bool revoked))",
+  "function getCurrentAllowance(address wallet,address token,address spender) external view returns (uint256)",
+  "function getKnownSpenders() external view returns (address[])",
+  "function spenderInfo(address) external view returns (string name,uint8 risk,string description,bool verified,bool exists)",
+  "event AllowanceLogged(uint256 indexed recordId,address indexed wallet,address indexed token,address spender,uint256 amount)",
+  "event AllowanceRevoked(uint256 indexed recordId,address indexed wallet,address indexed token,address spender)"
+];
+
+const TOKEN_WATCHLIST_ABI = [
+  "function addToWatchlist(address token) external",
+  "function removeFromWatchlist(address token) external",
+  "function getUserWatchlist(address user) external view returns (address[])",
+  "function getVerifiedTokens() external view returns (address[])",
+  "function getTokenInfo(address token) external view returns (tuple(address tokenAddress,string name,string symbol,uint8 decimals,bool adminVerified,bool exists))"
+];
+
+const ERC20_ABI = [
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function allowance(address owner,address spender) view returns (uint256)",
+  "function approve(address spender,uint256 amount) returns (bool)"
+];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let provider, signer, userAddr;
+let registryContract, watchlistContract;
+let scanTokens = [];
+let approvals = []; // { token, tokenSymbol, spender, spenderName, amount, risk, unlimited, checked }
+let historyFilter = 'all';
+let sessionRevokedCount = 0;
+
+// ═══════════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════════
+const DEMO_APPROVALS = [
+  {token:"0xABCDEF0001000000000000000000000000000001",tokenSymbol:"USDT",spender:"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",spenderName:"Uniswap V2 Router",amount:ethers?.MaxUint256||"115792089237316195423570985008687907853269984665640564039457584007913129639935",unlimited:true,risk:1,checked:false},
+  {token:"0xABCDEF0002000000000000000000000000000002",tokenSymbol:"WBOT",spender:"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",spenderName:"SushiSwap Router",amount:"500000000000000000000",unlimited:false,risk:1,checked:false},
+  {token:"0xABCDEF0003000000000000000000000000000003",tokenSymbol:"BOTX",spender:"0xBaD000000000000000000000000000000000bad1",spenderName:"Unknown Contract",amount:ethers?.MaxUint256||"115792089237316195423570985008687907853269984665640564039457584007913129639935",unlimited:true,risk:4,checked:false},
+  {token:"0xABCDEF0001000000000000000000000000000001",tokenSymbol:"USDT",spender:"0xC0ffEE000000000000000000000000000000c0ff",spenderName:"Phishing Site",amount:ethers?.MaxUint256||"115792089237316195423570985008687907853269984665640564039457584007913129639935",unlimited:true,risk:4,checked:false},
+  {token:"0xABCDEF0004000000000000000000000000000004",tokenSymbol:"LBOT",spender:"0xABCDEF0000000000000000000000000000000012",spenderName:"Lending Protocol",amount:"1000000000000000000000",unlimited:false,risk:2,checked:false},
+  {token:"0xABCDEF0005000000000000000000000000000005",tokenSymbol:"vBOT",spender:"0xBEEF000000000000000000000000000000000001",spenderName:"Old DEX (deprecated)",amount:ethers?.MaxUint256||"115792089237316195423570985008687907853269984665640564039457584007913129639935",unlimited:true,risk:3,checked:false}
+];
+
+const DEMO_SPENDERS = [
+  {address:"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",name:"Uniswap V2 Router",risk:1,verified:true,description:"Official Uniswap V2 router for token swaps"},
+  {address:"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",name:"SushiSwap Router",risk:1,verified:true,description:"SushiSwap AMM router"},
+  {address:"0xBaD000000000000000000000000000000000bad1",name:"Unknown Contract",risk:4,verified:false,description:"No metadata available. Exercise extreme caution."},
+  {address:"0xC0ffEE000000000000000000000000000000c0ff",name:"Phishing Site",risk:4,verified:false,description:"Flagged by community as phishing contract"},
+  {address:"0xABCDEF0000000000000000000000000000000012",name:"Lending Protocol",risk:2,verified:true,description:"Reputable lending market on BOT Chain"},
+  {address:"0xBEEF000000000000000000000000000000000001",name:"Old DEX v1",risk:3,verified:false,description:"Deprecated DEX — recommend revoking approvals"}
+];
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function go(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l => {
+    if (l.getAttribute('onclick') && l.getAttribute('onclick').includes("'"+page+"'")) l.classList.add('active');
+  });
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'revoke') renderRevokeList();
+  if (page === 'history') renderHistory();
+  if (page === 'spenders') renderSpenderTable();
+}
+
+// ═══════════════════════════════════════════
+// WALLET
+// ═══════════════════════════════════════════
+async function connectWallet() {
+  if (!window.ethereum) { toast('MetaMask not found', 'error'); return; }
+  try {
+    const { ethers } = await importEthers();
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+
+    // Switch to BOT Chain
+    try {
+      await provider.send("wallet_switchEthereumChain", [{ chainId: "0x" + CONFIG.chainId.toString(16) }]);
+    } catch(e) {
+      if (e.code === 4902) {
+        await provider.send("wallet_addEthereumChain", [{
+          chainId: "0x" + CONFIG.chainId.toString(16),
+          chainName: CONFIG.chainName,
+          rpcUrls: [CONFIG.rpcUrl],
+          blockExplorerUrls: [CONFIG.explorer]
+        }]);
+      }
+    }
+
+    signer = await provider.getSigner();
+    userAddr = await signer.getAddress();
+
+    const btn = document.getElementById('wallet-btn');
+    btn.textContent = userAddr.slice(0,6) + '…' + userAddr.slice(-4);
+    btn.classList.add('connected');
+    document.getElementById('no-wallet-banner').style.display = 'none';
+
+    if (!DEMO) {
+      registryContract = new ethers.Contract(CONFIG.contracts.AllowanceRegistry, ALLOWANCE_REGISTRY_ABI, signer);
+      watchlistContract = new ethers.Contract(CONFIG.contracts.TokenWatchlist, TOKEN_WATCHLIST_ABI, signer);
+    }
+
+    document.getElementById('scan-wallet').value = userAddr;
+    toast('Wallet connected: ' + userAddr.slice(0,8) + '…', 'success');
+    loadDemoApprovals();
+  } catch(e) {
+    toast('Connection failed: ' + (e.message || e), 'error');
+  }
+}
+
+async function importEthers() {
+  if (window.ethers) return window;
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js';
+    s.onload = () => res(window);
+    s.onerror = () => rej(new Error('Failed to load ethers.js'));
+    document.head.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════
+// DEMO / SCAN
+// ═══════════════════════════════════════════
+function loadDemoApprovals() {
+  approvals = DEMO_APPROVALS.map(a => ({...a}));
+  renderDashboard();
+  renderRevokeList();
+  toast('Demo approvals loaded', 'info');
+}
+
+async function runScan() {
+  const wallet = document.getElementById('scan-wallet').value.trim();
+  if (!wallet) { toast('Enter a wallet address', 'error'); return; }
+  if (!scanTokens.length) { toast('Add at least one token to scan', 'error'); return; }
+
+  if (DEMO) {
+    loadDemoApprovals();
+    renderScanResults(approvals);
+    return;
+  }
+
+  if (!provider) { toast('Connect wallet first', 'error'); return; }
+  const { ethers } = await importEthers();
+  const found = [];
+
+  for (const tokenAddr of scanTokens) {
+    // For each known spender, check allowance
+    const spenders = DEMO_SPENDERS.map(s => s.address);
+    for (const sp of spenders) {
+      try {
+        const token = new ethers.Contract(tokenAddr, ERC20_ABI, provider);
+        const [sym, dec, amt] = await Promise.all([
+          token.symbol().catch(() => tokenAddr.slice(0,8)),
+          token.decimals().catch(() => 18),
+          token.allowance(wallet, sp)
+        ]);
+        if (amt > 0n) {
+          const spInfo = DEMO_SPENDERS.find(s => s.address.toLowerCase() === sp.toLowerCase()) || {};
+          found.push({
+            token: tokenAddr, tokenSymbol: sym,
+            spender: sp, spenderName: spInfo.name || 'Unknown',
+            amount: amt.toString(),
+            unlimited: amt === ethers.MaxUint256,
+            risk: spInfo.risk || 0,
+            checked: false
+          });
+        }
+      } catch {}
+    }
+  }
+
+  approvals = found;
+  renderScanResults(found);
+  renderDashboard();
+  renderRevokeList();
+  toast(`Scan complete — ${found.length} approval(s) found`, found.length > 0 ? 'info' : 'success');
+}
+
+function addScanToken() {
+  const v = document.getElementById('scan-token-input').value.trim();
+  if (!v || scanTokens.includes(v)) return;
+  scanTokens.push(v);
+  document.getElementById('scan-token-input').value = '';
+  renderScanTokenChips();
+}
+
+function removeScanToken(t) {
+  scanTokens = scanTokens.filter(x => x !== t);
+  renderScanTokenChips();
+}
+
+function renderScanTokenChips() {
+  const c = document.getElementById('scan-token-list');
+  c.innerHTML = scanTokens.map(t =>
+    `<span style="background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:.78rem;display:flex;align-items:center;gap:6px">
+      ${t.slice(0,8)}…${t.slice(-4)}
+      <span style="cursor:pointer;color:var(--text3)" onclick="removeScanToken('${t}')">✕</span>
+    </span>`
+  ).join('');
+}
+
+function renderScanResults(list) {
+  const el = document.getElementById('scan-results');
+  if (!list.length) {
+    el.innerHTML = `<div class="alert alert-success">✅ No active allowances found for scanned tokens</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="alert alert-warning" style="margin-bottom:16px">⚠️ Found ${list.length} active approval(s)</div>
+    <div class="allowance-list">${list.map(a => allowanceRowHTML(a)).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD RENDER
+// ═══════════════════════════════════════════
+function renderDashboard() {
+  const active = approvals.length;
+  const unlimited = approvals.filter(a => a.unlimited).length;
+  const risky = approvals.filter(a => a.risk >= 3).length;
+  const tokens = new Set(approvals.map(a => a.token)).size;
+  const score = Math.min(100, unlimited * 20 + risky * 15 + active * 3);
+  const scoreColor = score > 70 ? 'var(--red)' : score > 40 ? 'var(--orange)' : score > 15 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-unlimited').textContent = unlimited;
+  document.getElementById('stat-risky').textContent = risky;
+  document.getElementById('stat-revoked').textContent = sessionRevokedCount;
+  document.getElementById('stat-tokens').textContent = tokens;
+  document.getElementById('stat-score').textContent = score + '/100';
+  document.getElementById('stat-score').style.color = scoreColor;
+  const fill = document.getElementById('risk-fill');
+  fill.style.width = score + '%';
+  fill.style.background = scoreColor;
+
+  // Critical alerts
+  const crit = approvals.filter(a => a.risk >= 4);
+  document.getElementById('critical-alerts').innerHTML = crit.map(a =>
+    `<div class="alert alert-danger">🚨 Critical Risk: Unlimited approval of <b>${a.tokenSymbol}</b> to <b>${a.spenderName}</b> —
+    <span style="cursor:pointer;text-decoration:underline" onclick="quickRevoke('${a.token}','${a.spender}','${a.tokenSymbol}','${a.spenderName}')">Revoke Now</span></div>`
+  ).join('');
+
+  // Top risky list
+  const sorted = [...approvals].sort((a,b) => b.risk - a.risk).slice(0, 5);
+  const list = document.getElementById('dashboard-list');
+  list.innerHTML = sorted.length
+    ? sorted.map(a => allowanceRowHTML(a, true)).join('')
+    : `<div class="empty"><div class="empty-icon">✅</div><div>No approvals loaded</div></div>`;
+}
+
+// ═══════════════════════════════════════════
+// REVOKE LIST
+// ═══════════════════════════════════════════
+function renderRevokeList() {
+  const el = document.getElementById('revoke-list');
+  if (!approvals.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><div>No approvals to show — scan your wallet first</div></div>`;
+    updateSelectionCount();
+    return;
+  }
+  el.innerHTML = approvals.map((a, i) => `
+    <div class="allowance-row risk-${riskClass(a.risk)}" id="revoke-row-${i}">
+      <label class="check-row" style="flex-shrink:0">
+        <input type="checkbox" id="chk-${i}" ${a.checked?'checked':''} onchange="toggleCheck(${i})">
+      </label>
+      <div class="token-icon">${a.tokenSymbol.slice(0,3)}</div>
+      <div class="allowance-info">
+        <div class="allowance-token">${a.tokenSymbol} <span class="${badgeClass(a.risk)}">${riskLabel(a.risk)}</span></div>
+        <div class="allowance-spender">${a.spender.slice(0,10)}…${a.spender.slice(-6)}</div>
+        <div style="font-size:.78rem;color:var(--text2)">${a.spenderName}</div>
+      </div>
+      <div>
+        <div class="allowance-amount ${a.unlimited?'unlimited':''}">${a.unlimited ? '∞ Unlimited' : formatAmt(a.amount)}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="quickRevoke('${a.token}','${a.spender}','${a.tokenSymbol}','${a.spenderName}')">Revoke</button>
+    </div>`
+  ).join('');
+  updateSelectionCount();
+}
+
+function toggleCheck(i) {
+  approvals[i].checked = document.getElementById('chk-'+i).checked;
+  updateSelectionCount();
+}
+function selectAll() { approvals.forEach(a => a.checked = true); renderRevokeList(); }
+function deselectAll() { approvals.forEach(a => a.checked = false); renderRevokeList(); }
+function selectAllRisky() { approvals.forEach(a => a.checked = a.risk >= 3); renderRevokeList(); }
+function selectUnlimited() { approvals.forEach(a => a.checked = a.unlimited); renderRevokeList(); }
+function updateSelectionCount() {
+  const n = approvals.filter(a => a.checked).length;
+  document.getElementById('selection-count').textContent = n + ' selected';
+  document.getElementById('batch-revoke-btn').disabled = n === 0;
+}
+
+async function quickRevoke(token, spender, sym, name) {
+  showConfirm(
+    `Revoke ${sym} approval`,
+    `Revoke unlimited approval for ${name} (${spender.slice(0,10)}…)?`,
+    async () => {
+      await doRevoke(token, spender, sym);
+    }
+  );
+}
+
+async function batchRevoke() {
+  const sel = approvals.filter(a => a.checked);
+  if (!sel.length) return;
+  showConfirm(
+    `Batch Revoke ${sel.length} Approval(s)`,
+    `This will call approve(spender, 0) for ${sel.length} token-spender pair(s). Proceed?`,
+    async () => {
+      if (DEMO) {
+        // Demo mode: simulate
+        const tokens = sel.map(a => a.token);
+        const spenders = sel.map(a => a.spender);
+        approvals = approvals.filter(a => !a.checked);
+        sessionRevokedCount += sel.length;
+        renderDashboard(); renderRevokeList();
+        toast(`${sel.length} approval(s) revoked (demo)`, 'success');
+        return;
+      }
+      if (!signer) { toast('Connect wallet first', 'error'); return; }
+      const { ethers } = await importEthers();
+      const reg = new ethers.Contract(CONFIG.contracts.AllowanceRegistry, ALLOWANCE_REGISTRY_ABI, signer);
+      try {
+        const tx = await reg.batchRevokeAllowances(sel.map(a=>a.token), sel.map(a=>a.spender));
+        await tx.wait();
+        approvals = approvals.filter(a => !a.checked);
+        sessionRevokedCount += sel.length;
+        renderDashboard(); renderRevokeList();
+        toast(`${sel.length} approval(s) revoked`, 'success');
+      } catch(e) {
+        toast('Batch revoke failed: ' + (e.reason || e.message), 'error');
+      }
+    }
+  );
+}
+
+async function doRevoke(token, spender, sym) {
+  if (DEMO) {
+    approvals = approvals.filter(a => !(a.token === token && a.spender === spender));
+    sessionRevokedCount++;
+    renderDashboard(); renderRevokeList();
+    toast(`${sym} approval revoked (demo)`, 'success');
+    return;
+  }
+  if (!signer) { toast('Connect wallet first', 'error'); return; }
+  const { ethers } = await importEthers();
+  const reg = new ethers.Contract(CONFIG.contracts.AllowanceRegistry, ALLOWANCE_REGISTRY_ABI, signer);
+  try {
+    const tx = await reg.revokeAllowance(token, spender);
+    await tx.wait();
+    approvals = approvals.filter(a => !(a.token === token && a.spender === spender));
+    sessionRevokedCount++;
+    renderDashboard(); renderRevokeList();
+    toast(`${sym} approval revoked`, 'success');
+  } catch(e) {
+    toast('Revoke failed: ' + (e.reason || e.message), 'error');
+  }
+}
+
+// ═══════════════════════════════════════════
+// WATCHLIST
+// ═══════════════════════════════════════════
+let watchlistItems = [];
+
+async function addToWatchlist() {
+  const v = document.getElementById('wl-token-input').value.trim();
+  if (!v) return;
+  if (DEMO) {
+    if (!watchlistItems.find(i => i.address === v)) {
+      watchlistItems.push({ address: v, symbol: v.slice(0,8), name: 'Unknown Token', verified: false });
+    }
+    renderWatchlist();
+    document.getElementById('wl-token-input').value = '';
+    toast('Token added to watchlist (demo)', 'info');
+    return;
+  }
+  if (!signer) { toast('Connect wallet first', 'error'); return; }
+  const { ethers } = await importEthers();
+  const wl = new ethers.Contract(CONFIG.contracts.TokenWatchlist, TOKEN_WATCHLIST_ABI, signer);
+  try {
+    const tx = await wl.addToWatchlist(v);
+    await tx.wait();
+    document.getElementById('wl-token-input').value = '';
+    toast('Token added to watchlist', 'success');
+    await loadWatchlist();
+  } catch(e) {
+    toast('Failed: ' + (e.reason || e.message), 'error');
+  }
+}
+
+async function removeFromWatchlist(addr) {
+  if (DEMO) {
+    watchlistItems = watchlistItems.filter(i => i.address !== addr);
+    renderWatchlist();
+    return;
+  }
+  if (!signer) return;
+  const { ethers } = await importEthers();
+  const wl = new ethers.Contract(CONFIG.contracts.TokenWatchlist, TOKEN_WATCHLIST_ABI, signer);
+  try {
+    const tx = await wl.removeFromWatchlist(addr);
+    await tx.wait();
+    toast('Token removed', 'info');
+    await loadWatchlist();
+  } catch(e) {
+    toast('Failed: ' + (e.reason || e.message), 'error');
+  }
+}
+
+async function loadWatchlist() {
+  if (DEMO || !signer) return;
+  const { ethers } = await importEthers();
+  const wl = new ethers.Contract(CONFIG.contracts.TokenWatchlist, TOKEN_WATCHLIST_ABI, provider);
+  const addrs = await wl.getUserWatchlist(userAddr);
+  watchlistItems = await Promise.all(addrs.map(async a => {
+    const info = await wl.getTokenInfo(a).catch(() => ({symbol:'???',name:'Unknown',adminVerified:false}));
+    return { address: a, symbol: info.symbol, name: info.name, verified: info.adminVerified };
+  }));
+  renderWatchlist();
+}
+
+function renderWatchlist() {
+  const el = document.getElementById('watchlist-items');
+  if (!watchlistItems.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">👁</div><div>No tokens on watchlist</div></div>`;
+    return;
+  }
+  el.innerHTML = watchlistItems.map(t => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--border)">
+      <div class="token-icon">${(t.symbol||'?').slice(0,3)}</div>
+      <div style="flex:1">
+        <div style="font-weight:600">${t.symbol} ${t.verified?'<span class="badge badge-verified">Verified</span>':''}</div>
+        <div class="mono" style="color:var(--text3)">${t.address}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="removeFromWatchlist('${t.address}')">Remove</button>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+let historyRecords = [];
+let historyFilterType = 'all';
+
+function switchHistoryTab(type) {
+  historyFilterType = type;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory() {
+  const q = document.getElementById('history-search').value.toLowerCase();
+  let list = historyRecords.filter(r => {
+    if (historyFilterType === 'active') return !r.revoked;
+    if (historyFilterType === 'revoked') return r.revoked;
+    return true;
+  }).filter(r => !q || r.token.toLowerCase().includes(q) || r.spender.toLowerCase().includes(q));
+
+  const el = document.getElementById('history-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div>No records match</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="allowance-list">${list.map(r => `
+    <div class="allowance-row ${r.revoked?'':'risk-'+riskClass(r.risk||0)}">
+      <div class="token-icon" style="${r.revoked?'opacity:.4':''}">TKN</div>
+      <div class="allowance-info">
+        <div class="allowance-token mono">${r.token.slice(0,10)}…${r.token.slice(-6)}</div>
+        <div class="allowance-spender">Spender: ${r.spender.slice(0,10)}…${r.spender.slice(-6)}</div>
+        <div style="font-size:.78rem;color:var(--text3)">${new Date(r.recordedAt*1000).toLocaleString()}</div>
+      </div>
+      <div>
+        ${r.revoked
+          ? `<span class="badge badge-low">Revoked</span>`
+          : `<span class="badge badge-high">Active</span>`}
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function filterHistory() { renderHistory(); }
+
+// ═══════════════════════════════════════════
+// SPENDER TABLE
+// ═══════════════════════════════════════════
+function renderSpenderTable() {
+  const q = document.getElementById('spender-search').value.toLowerCase();
+  const list = DEMO_SPENDERS.filter(s =>
+    !q || s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
+  );
+  document.getElementById('spender-tbody').innerHTML = list.map(s => `
+    <tr>
+      <td class="mono">${s.address.slice(0,10)}…${s.address.slice(-6)}</td>
+      <td>${s.name}</td>
+      <td><span class="${badgeClass(s.risk)}">${riskLabel(s.risk)}</span></td>
+      <td>${s.verified ? '<span class="badge badge-verified">Verified</span>' : '<span class="badge badge-unknown">Unverified</span>'}</td>
+      <td style="color:var(--text2);font-size:.82rem">${s.description}</td>
+    </tr>`
+  ).join('');
+}
+
+function filterSpenders() { renderSpenderTable(); }
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function allowanceRowHTML(a, showRevoke = false) {
+  return `<div class="allowance-row risk-${riskClass(a.risk)}">
+    <div class="token-icon">${a.tokenSymbol.slice(0,3)}</div>
+    <div class="allowance-info">
+      <div class="allowance-token">${a.tokenSymbol} <span class="${badgeClass(a.risk)}">${riskLabel(a.risk)}</span></div>
+      <div class="allowance-spender">${a.spender.slice(0,10)}…${a.spender.slice(-6)}</div>
+      <div style="font-size:.78rem;color:var(--text2)">${a.spenderName}</div>
+    </div>
+    <div class="allowance-amount ${a.unlimited?'unlimited':''}">${a.unlimited ? '∞ Unlimited' : formatAmt(a.amount)}</div>
+    ${showRevoke ? `<button class="btn btn-danger btn-sm" onclick="quickRevoke('${a.token}','${a.spender}','${a.tokenSymbol}','${a.spenderName}')">Revoke</button>` : ''}
+  </div>`;
+}
+
+function riskClass(r) {
+  return ['unknown','low','medium','high','critical'][r] || 'unknown';
+}
+function riskLabel(r) {
+  return ['Unknown','Low','Medium','High','Critical'][r] || 'Unknown';
+}
+function badgeClass(r) {
+  return 'badge badge-' + riskClass(r);
+}
+function formatAmt(raw) {
+  try {
+    const n = BigInt(raw);
+    if (n >= BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935")) return '∞';
+    const e18 = n / BigInt(10**18);
+    return e18.toLocaleString() + ' tokens';
+  } catch { return raw; }
+}
+
+// ═══════════════════════════════════════════
+// CONFIRM MODAL
+// ═══════════════════════════════════════════
+let _confirmCb = null;
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  _confirmCb = cb;
+  document.getElementById('confirm-modal').classList.add('open');
+  document.getElementById('confirm-ok-btn').onclick = async () => {
+    closeConfirm();
+    await cb();
+  };
+}
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const wrap = document.getElementById('toast-wrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.addEventListener('load', () => {
+  renderDashboard();
+  renderSpenderTable();
+  renderWatchlist();
+});
+</script>
+</body>
+</html>

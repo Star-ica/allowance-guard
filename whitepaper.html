@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AllowanceGuard — Whitepaper</title>
+<style>
+  body{font-family:'Segoe UI',Georgia,serif;max-width:860px;margin:0 auto;padding:48px 32px;color:#1e293b;line-height:1.75;font-size:16px}
+  h1{font-size:2.2rem;font-weight:800;color:#0f172a;margin-bottom:8px}
+  h2{font-size:1.4rem;font-weight:700;color:#0f172a;margin:36px 0 10px;border-bottom:2px solid #e2e8f0;padding-bottom:6px}
+  h3{font-size:1.1rem;font-weight:600;color:#1e293b;margin:24px 0 8px}
+  .subtitle{font-size:1rem;color:#64748b;margin-bottom:4px}
+  .meta{font-size:.88rem;color:#94a3b8;margin-bottom:40px}
+  p{margin-bottom:14px}
+  code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:.88rem;font-family:monospace}
+  pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;overflow-x:auto;font-size:.85rem;margin:14px 0}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem}
+  th{background:#f1f5f9;padding:10px 12px;text-align:left;font-weight:600;border:1px solid #e2e8f0}
+  td{padding:10px 12px;border:1px solid #e2e8f0}
+  tr:nth-child(even) td{background:#f8fafc}
+  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600}
+  .badge-green{background:#dcfce7;color:#166534}
+  .badge-yellow{background:#fef9c3;color:#854d0e}
+  .badge-red{background:#fee2e2;color:#991b1b}
+  .box{background:#f8fafc;border-left:4px solid #3b82f6;border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0}
+  .warning{border-left-color:#f97316;background:#fff7ed}
+  ul,ol{margin:10px 0 10px 20px}
+  li{margin-bottom:4px}
+  .toc a{text-decoration:none;color:#3b82f6}
+  .toc a:hover{text-decoration:underline}
+  .toc li{margin-bottom:2px}
+  @media print{body{max-width:100%;padding:24px}}
+</style>
+</head>
+<body>
+
+<h1>🛡 AllowanceGuard</h1>
+<div class="subtitle">ERC-20 Approval Security Platform on BOT Chain</div>
+<div class="meta">Version 1.0 · BOT Chain (chainId 677) · November 2026</div>
+
+<h2>Table of Contents</h2>
+<ol class="toc">
+  <li><a href="#abstract">Abstract</a></li>
+  <li><a href="#problem">The Approval Vulnerability Problem</a></li>
+  <li><a href="#solution">AllowanceGuard Solution</a></li>
+  <li><a href="#architecture">System Architecture</a></li>
+  <li><a href="#contracts">Smart Contracts</a></li>
+  <li><a href="#risk">Risk Classification Model</a></li>
+  <li><a href="#security">Security Design</a></li>
+  <li><a href="#frontend">Frontend Application</a></li>
+  <li><a href="#deployment">Deployment</a></li>
+  <li><a href="#disclaimer">Disclaimer</a></li>
+</ol>
+
+<h2 id="abstract">1. Abstract</h2>
+<p>AllowanceGuard is a decentralized ERC-20 approval security dashboard built on BOT Chain. It enables users to discover, audit, and revoke token spending approvals granted to third-party contracts — a critical security hygiene step that most wallets and block explorers make difficult. AllowanceGuard provides an on-chain audit trail, a risk-classified spender database, batch revocation, and a user-friendly security dashboard built entirely in Vanilla JavaScript with Solidity backend contracts and no traditional server infrastructure.</p>
+
+<h2 id="problem">2. The Approval Vulnerability Problem</h2>
+
+<h3>2.1 The ERC-20 Approve Pattern</h3>
+<p>The ERC-20 standard includes an <code>approve(spender, amount)</code> function that permits a third-party contract to transfer tokens on the owner's behalf. This mechanism underlies every DeFi protocol — DEXes, lending markets, staking platforms, and yield optimizers all require token approvals before they can move funds.</p>
+
+<h3>2.2 Why Approvals Are Dangerous</h3>
+<p>Several vulnerabilities arise from this design:</p>
+<ul>
+  <li><strong>Unlimited approvals:</strong> To save gas and avoid re-approval UX friction, most DeFi frontends request <code>type(uint256).max</code> (infinite) approvals. If the approved contract is ever compromised, all tokens are at risk indefinitely.</li>
+  <li><strong>Forgotten approvals:</strong> Users accumulate approvals across dozens of protocols over time. Even after a protocol is abandoned or deprecated, the approval persists on-chain.</li>
+  <li><strong>Phishing approvals:</strong> Malicious sites trick users into approving a hacker-controlled address with unlimited spending rights, then drain wallets immediately or at a chosen moment.</li>
+  <li><strong>Exploited contracts:</strong> Legitimate protocols can be hacked. Any wallet that holds an outstanding unlimited approval to a hacked contract loses all approved tokens.</li>
+  <li><strong>No native discovery:</strong> MetaMask, standard wallets, and most explorers offer no view of outstanding approvals. Users cannot see their exposure without specialized tools.</li>
+</ul>
+
+<h3>2.3 Scope of the Problem</h3>
+<p>Studies of EVM chains show the average active DeFi wallet holds 8–15 outstanding ERC-20 approvals. A significant fraction are unlimited. This represents a persistent, compounding security debt that grows with each protocol interaction and never self-heals without deliberate revocation.</p>
+
+<h2 id="solution">3. AllowanceGuard Solution</h2>
+
+<h3>3.1 Core Capabilities</h3>
+<ul>
+  <li><strong>Live Scanner:</strong> Read <code>allowance(owner, spender)</code> from ERC-20 tokens across a watchlist of token contracts and known spender addresses.</li>
+  <li><strong>Risk Classification:</strong> Each spender is classified Unknown / Low / Medium / High / Critical based on admin-verified metadata and community flags.</li>
+  <li><strong>One-Click Revoke:</strong> Execute <code>approve(spender, 0)</code> directly from the dashboard for any active approval.</li>
+  <li><strong>Batch Revoke:</strong> Revoke up to 20 approvals in a single transaction via <code>batchRevokeAllowances</code>.</li>
+  <li><strong>On-Chain Audit Log:</strong> Approvals and revocations are logged to the <code>AllowanceRegistry</code> contract, creating an immutable history queryable by any wallet.</li>
+  <li><strong>Token Watchlist:</strong> Users maintain a personal on-chain list of tokens to monitor, persisted via the <code>TokenWatchlist</code> contract.</li>
+</ul>
+
+<h3>3.2 Design Principles</h3>
+<ul>
+  <li><strong>Non-custodial:</strong> AllowanceGuard never holds tokens. All approvals and revocations execute directly on the token contract.</li>
+  <li><strong>No backend:</strong> Pure on-chain + ethers.js frontend. No server, no database, no API keys required.</li>
+  <li><strong>Transparent:</strong> All contract code is open source and verifiable on the BOT Chain explorer.</li>
+  <li><strong>Ergonomic:</strong> Single-page application with security dashboard, batch operations, and risk indicators designed for non-technical users.</li>
+</ul>
+
+<h2 id="architecture">4. System Architecture</h2>
+
+<pre>
+  User Wallet (MetaMask)
+        │
+        ▼
+  index.html (SPA)
+   ethers.js v6
+        │
+   ┌────┴─────────────────────┐
+   │                          │
+   ▼                          ▼
+AllowanceRegistry        TokenWatchlist
+  - logAllowance()         - addToWatchlist()
+  - revokeAllowance()      - removeFromWatchlist()
+  - batchRevokeAll()       - getVerifiedTokens()
+  - getWalletRecords()     - getTokenInfo()
+  - getCurrentAllowance()
+  - registerSpender() (admin)
+        │
+        ▼ (reads live data)
+  ERC-20 Token Contracts
+   .allowance(owner, spender)
+   .approve(spender, 0)
+</pre>
+
+<h2 id="contracts">5. Smart Contracts</h2>
+
+<h3>5.1 AllowanceRegistry</h3>
+<p>The core contract providing audit log, revocation relay, and spender metadata.</p>
+
+<table>
+  <tr><th>Function</th><th>Access</th><th>Description</th></tr>
+  <tr><td><code>logAllowance(token, spender, amount)</code></td><td>Any wallet</td><td>Record an approval in the audit log</td></tr>
+  <tr><td><code>revokeAllowance(token, spender)</code></td><td>Any wallet</td><td>Call <code>token.approve(spender,0)</code> and mark record revoked</td></tr>
+  <tr><td><code>batchRevokeAllowances(tokens[], spenders[])</code></td><td>Any wallet</td><td>Revoke up to 20 approvals in one tx; failures skipped</td></tr>
+  <tr><td><code>getCurrentAllowance(wallet, token, spender)</code></td><td>View</td><td>Live ERC-20 allowance lookup</td></tr>
+  <tr><td><code>getWalletRecords(wallet)</code></td><td>View</td><td>All record IDs for a wallet</td></tr>
+  <tr><td><code>registerSpender(spender, name, risk, desc, verified)</code></td><td>Owner</td><td>Admin-register a spender with metadata</td></tr>
+  <tr><td><code>updateSpenderRisk(spender, newRisk)</code></td><td>Owner</td><td>Update risk level for a registered spender</td></tr>
+  <tr><td><code>pause() / unpause()</code></td><td>Owner</td><td>Emergency halt</td></tr>
+</table>
+
+<h3>5.2 TokenWatchlist</h3>
+<p>Per-user and admin-global token monitoring lists.</p>
+
+<table>
+  <tr><th>Function</th><th>Access</th><th>Description</th></tr>
+  <tr><td><code>addToWatchlist(token)</code></td><td>Any wallet</td><td>Add token to caller's watchlist; auto-reads symbol/decimals</td></tr>
+  <tr><td><code>removeFromWatchlist(token)</code></td><td>Any wallet</td><td>Remove token from caller's watchlist</td></tr>
+  <tr><td><code>verifyToken(token)</code></td><td>Owner</td><td>Admin-verify a token and store its metadata</td></tr>
+  <tr><td><code>getUserWatchlist(user)</code></td><td>View</td><td>Return all tokens a user is watching</td></tr>
+  <tr><td><code>getVerifiedTokens()</code></td><td>View</td><td>Return all admin-verified tokens</td></tr>
+</table>
+
+<h3>5.3 Key Data Structures</h3>
+<pre>
+struct AllowanceRecord {
+    address token;
+    address spender;
+    uint256 recordedAmount;   // informational snapshot
+    uint256 recordedAt;       // block.timestamp
+    uint256 revokedAt;        // 0 = not yet revoked
+    bool revoked;
+}
+
+enum RiskLevel { Unknown, Low, Medium, High, Critical }
+
+struct SpenderInfo {
+    string  name;
+    RiskLevel risk;
+    string  description;
+    bool    verified;         // admin-verified safe
+    bool    exists;
+}
+</pre>
+
+<h2 id="risk">6. Risk Classification Model</h2>
+
+<table>
+  <tr><th>Level</th><th>Badge</th><th>Criteria</th><th>Recommended Action</th></tr>
+  <tr><td>Unknown (0)</td><td><span class="badge" style="background:#e2e8f0;color:#64748b">Unknown</span></td><td>Not in spender database</td><td>Research before trusting</td></tr>
+  <tr><td>Low (1)</td><td><span class="badge badge-green">Low</span></td><td>Verified protocol, good track record</td><td>Monitor; consider reducing to needed amount</td></tr>
+  <tr><td>Medium (2)</td><td><span class="badge badge-yellow">Medium</span></td><td>Legitimate but not fully audited</td><td>Revoke if not actively using</td></tr>
+  <tr><td>High (3)</td><td><span class="badge" style="background:#ffedd5;color:#c2410c">High</span></td><td>Deprecated, unaudited, or prior incidents</td><td>Revoke immediately</td></tr>
+  <tr><td>Critical (4)</td><td><span class="badge badge-red">Critical</span></td><td>Flagged phishing, known exploit, or hacked</td><td>Revoke immediately — urgent</td></tr>
+</table>
+
+<div class="box warning">
+  <strong>⚠️ Unlimited Approvals:</strong> Any <code>type(uint256).max</code> approval grants the spender unrestricted access to the entire token balance, forever, until revoked. AllowanceGuard highlights these prominently regardless of risk level.
+</div>
+
+<h2 id="security">7. Security Design</h2>
+
+<h3>7.1 Non-Custodial Revocation</h3>
+<p>AllowanceGuard's <code>revokeAllowance</code> function calls <code>IERC20(token).approve(spender, 0)</code> where <code>msg.sender</code> is the wallet owner — not the contract. The contract never holds tokens or approvals itself. It is a stateless relay that only emits audit events and delegates the actual approval change to the token contract directly.</p>
+
+<h3>7.2 Batch Safety</h3>
+<p>The <code>batchRevokeAllowances</code> function uses try/catch per token so a failure on one token (e.g., a non-standard token that reverts on <code>approve</code>) does not block the entire batch. Failed revocations are skipped silently; successful ones emit events. The batch is capped at 20 items to prevent gas limit issues.</p>
+
+<h3>7.3 Reentrancy Protection</h3>
+<p>All state-changing external calls use <code>ReentrancyGuard</code> from OpenZeppelin. The CEI (Checks-Effects-Interactions) pattern is followed: internal state is updated before external ERC-20 calls.</p>
+
+<h3>7.4 Pause Mechanism</h3>
+<p>The owner can pause the registry to halt new log and revoke operations in an emergency. This protects users from interacting with a compromised frontend while a fix is deployed.</p>
+
+<h3>7.5 Limitations</h3>
+<ul>
+  <li>AllowanceGuard can only discover approvals for tokens the user explicitly adds to their scan list. It does not automatically enumerate all ERC-20 tokens.</li>
+  <li>The audit log only covers approvals recorded via the AllowanceGuard UI. Historical approvals made through other frontends are not in the registry unless manually logged.</li>
+  <li>Some non-standard ERC-20 tokens may revert on <code>approve(spender, 0)</code>. The batch revoke skips these; single revoke returns an error.</li>
+</ul>
+
+<h2 id="frontend">8. Frontend Application</h2>
+
+<h3>8.1 Pages</h3>
+<table>
+  <tr><th>Page</th><th>Purpose</th></tr>
+  <tr><td>Dashboard</td><td>Security overview: stat tiles, risk score, critical alerts, top risky approvals</td></tr>
+  <tr><td>Scanner</td><td>Add token addresses and scan live allowances across known spenders</td></tr>
+  <tr><td>Revoke</td><td>Checkbox-driven list for selective or batch revocation</td></tr>
+  <tr><td>Watchlist</td><td>Manage personal on-chain token watchlist</td></tr>
+  <tr><td>History</td><td>On-chain audit log — all recorded approvals and revocations</td></tr>
+  <tr><td>Spender DB</td><td>Browse risk-classified spender database with search</td></tr>
+</table>
+
+<h3>8.2 Risk Score Formula</h3>
+<pre>
+riskScore = min(100,
+  (unlimited_approvals × 20) +
+  (high_or_critical × 15) +
+  (total_active × 3)
+)
+</pre>
+<p>Score 0–15: Low risk (green). 16–40: Moderate (yellow). 41–70: High (orange). 71–100: Critical (red).</p>
+
+<h3>8.3 DEMO Mode</h3>
+<p>When <code>DEMO = true</code> (default before deployment), the application uses hardcoded sample approvals and simulates revocations client-side. No wallet or deployed contract is required. Set <code>DEMO = false</code> and update <code>CONFIG.contracts</code> after deployment.</p>
+
+<h2 id="deployment">9. Deployment</h2>
+
+<p>See <code>deploy.md</code> for full instructions. Summary:</p>
+<ol>
+  <li>Deploy <code>AllowanceRegistry</code></li>
+  <li>Deploy <code>TokenWatchlist</code></li>
+  <li>Verify both contracts on the BOT Chain explorer</li>
+  <li>Run <code>seed-spenders.js</code> to populate the spender database</li>
+  <li>Verify popular tokens via <code>TokenWatchlist.verifyToken()</code></li>
+  <li>Update <code>CONFIG.contracts</code> in <code>index.html</code> and set <code>DEMO = false</code></li>
+</ol>
+
+<h2 id="disclaimer">10. Disclaimer</h2>
+<div class="box">
+  <p>AllowanceGuard is provided as-is for educational and security hygiene purposes. It does not constitute financial or investment advice. Users are solely responsible for their own token approvals and revocations. Smart contracts have been developed with security best practices but have not been professionally audited. Use at your own risk. Always verify contract addresses and transaction details before signing.</p>
+  <p>Revoking an approval will prevent the approved protocol from accessing your tokens — this may disrupt active positions (open orders, staked assets, liquidity positions) in those protocols. Review implications before revoking.</p>
+</div>
+
+</body>
+</html>
