@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>AllowanceGuard — Whitepaper</title>
+<title>RevokeX — Whitepaper</title>
 <style>
   body{font-family:'Segoe UI',Georgia,serif;max-width:860px;margin:0 auto;padding:48px 32px;color:#1e293b;line-height:1.75;font-size:16px}
   h1{font-size:2.2rem;font-weight:800;color:#0f172a;margin-bottom:8px}
@@ -34,7 +34,7 @@
 </head>
 <body>
 
-<h1>🛡 AllowanceGuard</h1>
+<h1>🛡 RevokeX</h1>
 <div class="subtitle">ERC-20 Approval Security Platform on BOT Chain</div>
 <div class="meta">Version 1.0 · BOT Chain (chainId 677) · November 2026</div>
 
@@ -42,7 +42,7 @@
 <ol class="toc">
   <li><a href="#abstract">Abstract</a></li>
   <li><a href="#problem">The Approval Vulnerability Problem</a></li>
-  <li><a href="#solution">AllowanceGuard Solution</a></li>
+  <li><a href="#solution">RevokeX Solution</a></li>
   <li><a href="#architecture">System Architecture</a></li>
   <li><a href="#contracts">Smart Contracts</a></li>
   <li><a href="#risk">Risk Classification Model</a></li>
@@ -53,7 +53,7 @@
 </ol>
 
 <h2 id="abstract">1. Abstract</h2>
-<p>AllowanceGuard is a decentralized ERC-20 approval security dashboard built on BOT Chain. It enables users to discover, audit, and revoke token spending approvals granted to third-party contracts — a critical security hygiene step that most wallets and block explorers make difficult. AllowanceGuard provides an on-chain audit trail, a risk-classified spender database, batch revocation, and a user-friendly security dashboard built entirely in Vanilla JavaScript with Solidity backend contracts and no traditional server infrastructure.</p>
+<p>RevokeX is a decentralized ERC-20 approval security dashboard built on BOT Chain. It enables users to discover, audit, and revoke token spending approvals granted to third-party contracts — a critical security hygiene step that most wallets and block explorers make difficult. RevokeX provides an on-chain audit trail, a risk-classified spender database, batch revocation, and a user-friendly security dashboard built entirely in Vanilla JavaScript with Solidity backend contracts and no traditional server infrastructure.</p>
 
 <h2 id="problem">2. The Approval Vulnerability Problem</h2>
 
@@ -73,7 +73,7 @@
 <h3>2.3 Scope of the Problem</h3>
 <p>Studies of EVM chains show the average active DeFi wallet holds 8–15 outstanding ERC-20 approvals. A significant fraction are unlimited. This represents a persistent, compounding security debt that grows with each protocol interaction and never self-heals without deliberate revocation.</p>
 
-<h2 id="solution">3. AllowanceGuard Solution</h2>
+<h2 id="solution">3. RevokeX Solution</h2>
 
 <h3>3.1 Core Capabilities</h3>
 <ul>
@@ -87,7 +87,7 @@
 
 <h3>3.2 Design Principles</h3>
 <ul>
-  <li><strong>Non-custodial:</strong> AllowanceGuard never holds tokens. All approvals and revocations execute directly on the token contract.</li>
+  <li><strong>Non-custodial:</strong> RevokeX never holds tokens. All approvals and revocations execute directly on the token contract.</li>
   <li><strong>No backend:</strong> Pure on-chain + ethers.js frontend. No server, no database, no API keys required.</li>
   <li><strong>Transparent:</strong> All contract code is open source and verifiable on the BOT Chain explorer.</li>
   <li><strong>Ergonomic:</strong> Single-page application with security dashboard, batch operations, and risk indicators designed for non-technical users.</li>
@@ -182,13 +182,13 @@ struct SpenderInfo {
 </table>
 
 <div class="box warning">
-  <strong>⚠️ Unlimited Approvals:</strong> Any <code>type(uint256).max</code> approval grants the spender unrestricted access to the entire token balance, forever, until revoked. AllowanceGuard highlights these prominently regardless of risk level.
+  <strong>⚠️ Unlimited Approvals:</strong> Any <code>type(uint256).max</code> approval grants the spender unrestricted access to the entire token balance, forever, until revoked. RevokeX highlights these prominently regardless of risk level.
 </div>
 
 <h2 id="security">7. Security Design</h2>
 
 <h3>7.1 Non-Custodial Revocation</h3>
-<p>AllowanceGuard's <code>revokeAllowance</code> function calls <code>IERC20(token).approve(spender, 0)</code> where <code>msg.sender</code> is the wallet owner — not the contract. The contract never holds tokens or approvals itself. It is a stateless relay that only emits audit events and delegates the actual approval change to the token contract directly.</p>
+<p>RevokeX's <code>revokeAllowance</code> function calls <code>IERC20(token).approve(spender, 0)</code> where <code>msg.sender</code> is the wallet owner — not the contract. The contract never holds tokens or approvals itself. It is a stateless relay that only emits audit events and delegates the actual approval change to the token contract directly.</p>
 
 <h3>7.2 Batch Safety</h3>
 <p>The <code>batchRevokeAllowances</code> function uses try/catch per token so a failure on one token (e.g., a non-standard token that reverts on <code>approve</code>) does not block the entire batch. Failed revocations are skipped silently; successful ones emit events. The batch is capped at 20 items to prevent gas limit issues.</p>
@@ -201,8 +201,8 @@ struct SpenderInfo {
 
 <h3>7.5 Limitations</h3>
 <ul>
-  <li>AllowanceGuard can only discover approvals for tokens the user explicitly adds to their scan list. It does not automatically enumerate all ERC-20 tokens.</li>
-  <li>The audit log only covers approvals recorded via the AllowanceGuard UI. Historical approvals made through other frontends are not in the registry unless manually logged.</li>
+  <li>RevokeX can only discover approvals for tokens the user explicitly adds to their scan list. It does not automatically enumerate all ERC-20 tokens.</li>
+  <li>The audit log only covers approvals recorded via the RevokeX UI. Historical approvals made through other frontends are not in the registry unless manually logged.</li>
   <li>Some non-standard ERC-20 tokens may revert on <code>approve(spender, 0)</code>. The batch revoke skips these; single revoke returns an error.</li>
 </ul>
 
@@ -246,7 +246,7 @@ riskScore = min(100,
 
 <h2 id="disclaimer">10. Disclaimer</h2>
 <div class="box">
-  <p>AllowanceGuard is provided as-is for educational and security hygiene purposes. It does not constitute financial or investment advice. Users are solely responsible for their own token approvals and revocations. Smart contracts have been developed with security best practices but have not been professionally audited. Use at your own risk. Always verify contract addresses and transaction details before signing.</p>
+  <p>RevokeX is provided as-is for educational and security hygiene purposes. It does not constitute financial or investment advice. Users are solely responsible for their own token approvals and revocations. Smart contracts have been developed with security best practices but have not been professionally audited. Use at your own risk. Always verify contract addresses and transaction details before signing.</p>
   <p>Revoking an approval will prevent the approved protocol from accessing your tokens — this may disrupt active positions (open orders, staked assets, liquidity positions) in those protocols. Review implications before revoking.</p>
 </div>
 

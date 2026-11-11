@@ -1,11 +1,11 @@
-# AllowanceGuard — Deployment Guide
+# RevokeX — Deployment Guide
 
 ## Prerequisites
 - Node.js >= 18, npm >= 9, funded deployer wallet
 
 ## 1. Setup
 ```bash
-mkdir allowanceguard-deploy && cd allowanceguard-deploy
+mkdir revokex-deploy && cd revokex-deploy
 npm init -y
 npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
 npm install @openzeppelin/contracts dotenv
